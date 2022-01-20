@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:chat_online/text_composer.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 
@@ -15,9 +14,6 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   void _sendMessageToFirebase({String? text, File? imgFile}) async {
-    WidgetsFlutterBinding.ensureInitialized();
-    await Firebase.initializeApp();
-
     Map<String, dynamic> data = {};
 
     if (imgFile != null) {
@@ -29,7 +25,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       TaskSnapshot taskSnapshot = await task.whenComplete(() => this);
       String url = await taskSnapshot.ref.getDownloadURL();
-      data['imgUrl'] = url;
+      data['text'] = url;
     }
 
     if (text != null) data['text'] = text;
@@ -44,7 +40,36 @@ class _ChatScreenState extends State<ChatScreen> {
         title: const Text('Olá'),
         elevation: 0,
       ),
-      body: TextComposer(_sendMessageToFirebase),
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder(
+              stream:
+                  FirebaseFirestore.instance.collection('messages').snapshots(),
+              builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
+                switch (snapshot.connectionState) {
+                  case ConnectionState.none:
+                  case ConnectionState.waiting:
+                    return const Center(child: CircularProgressIndicator());
+
+                  default:
+                    List<DocumentSnapshot> docs = snapshot.data.docs;
+                    return ListView.builder(
+                      itemCount: docs.length,
+                      reverse: true,
+                      itemBuilder: (context, index) {
+                        return ListTile(
+                          title: Text(docs[index].get('text')),
+                        );
+                      },
+                    );
+                }
+              },
+            ),
+          ),
+          TextComposer(_sendMessageToFirebase),
+        ],
+      ),
     );
   }
 }
